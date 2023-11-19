@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Input parameters
-DB_NAME="Pharmacy_Defender"
+DB_NAME="Pharmacy Directory"
 DB_OWNER="arthur"
 DB_HOST="localhost"
 
@@ -11,4 +11,4 @@ createdb -h ${DB_HOST} -U ${DB_OWNER} ${DB_NAME}
 # Setting the database owner
 psql -h ${DB_HOST} -U ${DB_OWNER} -c "ALTER DATABASE ${DB_NAME} OWNER TO ${DB_OWNER};"
 
-echo "База данных ${DB_NAME} успешно создана и установлен владелец ${DB_OWNER}."
+echo "Database ${DB_NAME} has been successfully created and owner ${DB_OWNER} has been set."
