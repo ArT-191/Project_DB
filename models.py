@@ -37,6 +37,7 @@ class Pharmacy(Base):
     address = Column(String(100))
     pharmacy_name = Column(String(30), primary_key=True)
     specialization = Column(String(30))
+    working_time = Column(String(30))
 
 DATABASE_URL = "postgresql://arthur_191:pass123@localhost:5432/Pharmacy_Directory"
 engine = create_engine(DATABASE_URL, echo=True)
