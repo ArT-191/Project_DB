@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Input parameters
-DB_NAME="Pharmacy Directory"
-DB_OWNER="arthur"
+DB_NAME="Pharmacy_Director"
+DB_OWNER="arthur_191"
 DB_HOST="localhost"
 
 # Database creation
