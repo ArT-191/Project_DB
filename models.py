@@ -12,6 +12,7 @@ class Medicine(Base):
     name = Column(String(50), unique=True)
     indications = Column(String(150))
     contraindications = Column(String(150))
+    description = Column(String(200))  # New field
 
     # One-to-Many relationship with Availability
     availabilities = relationship('Availability', back_populates='medicine')
