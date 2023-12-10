@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, DateTime, func
 from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
 from sqlalchemy.orm import sessionmaker
-from typing import List
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Pattern, List
+import re
 
 
 # Use your existing SQLAlchemy models
@@ -158,3 +158,23 @@ def availability_by_manufacturer(db: Session = Depends(get_db)):
 def list_pharmacies_sorted(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
     pharmacies = db.query(Pharmacy).order_by(Pharmacy.pharmacy_name).offset(skip).limit(limit).all()
     return pharmacies
+
+@app.post("/populate_extra_data/{medicine_id}")
+def populate_extra_data(medicine_id: int, extra_data: dict, db: Session = Depends(get_db)):
+    db_medicine = db.query(Medicine).filter(Medicine.id == medicine_id).first()
+    if db_medicine is None:
+        raise HTTPException(status_code=404, detail="Medicine not found")
+
+    db_medicine.extra_data = extra_data
+    db.commit()
+    db.refresh(db_medicine)
+
+    return {"message": "Extra data populated successfully"}
+
+# Add a new route for full-text search using a regular expression
+@app.get("/search_medicines/")
+def search_medicines(regex: str, db: Session = Depends(get_db)):
+    compiled_regex: Pattern = re.compile(regex, re.IGNORECASE)
+    
+    medicines = db.query(Medicine).filter(compiled_regex.match(Medicine.name)).all()
+    
