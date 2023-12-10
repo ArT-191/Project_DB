@@ -1,6 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint, func, Table
+from sqlalchemy import create_engine, Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint, func
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from datetime import datetime, timedelta
+from sqlalchemy.dialects.postgresql import JSONB
 
 Base = declarative_base()
 
@@ -12,20 +12,25 @@ class Medicine(Base):
     name = Column(String(50), unique=True)
     indications = Column(String(150))
     contraindications = Column(String(150))
-    description = Column(String(200))  # New field
+    description = Column(String(200))
+    extra_data = Column(JSONB)
 
     # One-to-Many relationship with Availability
-    availabilities = relationship('Availability', back_populates='medicine')
+    availabilities = relationship('Availability', back_populates='medicine', cascade="all, delete-orphan")
 
 class Availability(Base):
     __tablename__ = "Availability"
 
     price = Column(Numeric(precision=10, scale=2), primary_key=True)
-    date = Column(DateTime, default=func.now())
+    date = Column(String(25))
     count = Column(Integer, CheckConstraint('count > 0'))
-    expiration_date = Column(DateTime)
+    expiration_date = Column(String(25))
+    extra_data = Column(JSONB)
 
-    
+    # Many-to-One relationship with Medicine
+    medicine_quantity_per_package = Column(Integer, ForeignKey('Medicine.quantity_per_package'))
+    medicine = relationship('Medicine', back_populates='availabilities')
+
     # Many-to-One relationship with Pharmacy
     pharmacy_name = Column(String(30), ForeignKey('Pharmacy.pharmacy_name'))
     pharmacy = relationship('Pharmacy', back_populates='availabilities')
@@ -38,6 +43,10 @@ class Pharmacy(Base):
     pharmacy_name = Column(String(30), primary_key=True)
     specialization = Column(String(30))
     working_time = Column(String(30))
+    extra_data = Column(JSONB)
+
+    # One-to-Many relationship with Availability
+    availabilities = relationship('Availability', back_populates='pharmacy', cascade="all, delete-orphan")
 
 DATABASE_URL = "postgresql://arthur_191:pass123@localhost:5432/Pharmacy_Directory"
 engine = create_engine(DATABASE_URL, echo=True)
