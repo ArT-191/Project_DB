@@ -1,54 +1,59 @@
 from fastapi import FastAPI, HTTPException, Depends
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
-from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, DateTime, func
+from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
+from sqlalchemy.orm import sessionmaker
 from typing import List
+from pydantic import BaseModel
+from datetime import datetime, timedelta
+from typing import Optional
 
-# Create FastAPI instance
-app = FastAPI()
 
-# Define the PostgreSQL database URL
+# Use your existing SQLAlchemy models
+from models import Medicine, Availability, Pharmacy
+
 DATABASE_URL = "postgresql://arthur_191:pass123@localhost:5432/Pharmacy_Directory"
 
-# Create a SQLAlchemy engine
 engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create a base class for declarative models
-Base = declarative_base()
+Base: DeclarativeMeta = declarative_base()
 
-# # Define the Medicine class as a SQLAlchemy model
-class Medicine(Base):
-    __tablename__ = "Medicine"
-
-    # Define columns for the Medicine table
-    quantity_per_package = Column(Integer, primary_key=True)
-    manufacturer = Column(String(50))
-    name = Column(String(50), unique=True)
-    indications = Column(String(150))
-    contraindications = Column(String(150))
-
-# Define a Pydantic model for creating a new Medicine
+# Create Pydantic models for request and response
 class MedicineCreate(BaseModel):
-    manufacturer: str
-    name: str
-    indications: str
-    contraindications: str
-
-# Define a Pydantic model for the Medicine response
-class MedicineResponse(BaseModel):
     quantity_per_package: int
     manufacturer: str
     name: str
     indications: str
     contraindications: str
 
-# Create the Medicine table in the database
-Base.metadata.create_all(bind=engine)
 
-# Create a SQLAlchemy session maker
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+class MedicineResponse(MedicineCreate):
+    pass
 
-# Define a FastAPI dependency for getting a database session
+class AvailabilityCreate(BaseModel):
+    price: float
+    date: str
+    count: int
+    expiration_date: str
+
+class AvailabilityResponse(AvailabilityCreate):
+    date: str
+
+class PharmacyCreate(BaseModel):
+    telephone: str
+    address: str
+    pharmacy_name: str
+    specialization: str
+    working_time: str
+
+class PharmacyResponse(PharmacyCreate):
+    pass
+
+# Create FastAPI app
+app = FastAPI(debug=True)
+
+# Dependency to get the database session
 def get_db():
     db = SessionLocal()
     try:
@@ -56,42 +61,100 @@ def get_db():
     finally:
         db.close()
 
-# Define FastAPI endpoint to create a new Medicine
+# CRUD operations for Medicine
 @app.post("/medicines/", response_model=MedicineResponse)
 def create_medicine(medicine: MedicineCreate, db: Session = Depends(get_db)):
-    # Create a new Medicine instance from the input data
-    db_medicine = Medicine(**medicine.dict())
+    try:
+        db_medicine = Medicine(**medicine.dict())
+        db.add(db_medicine)
+        db.commit()
+        db.refresh(db_medicine)
+        return db_medicine
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
-    # Add the new Medicine to the database session
-    db.add(db_medicine)
 
-    # Commit the changes to the database
-    db.commit()
-
-    # Refresh the Medicine instance to get updated values
-    db.refresh(db_medicine)
-
-    # Return the created Medicine as the response
-    return db_medicine
-
-# Define FastAPI endpoint to get all Medicines
-@app.get("/medicines/", response_model=List[MedicineResponse])
-def read_medicines(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
-    # Query the database to get a list of Medicines with pagination
-    medicines = db.query(Medicine).offset(skip).limit(limit).all()
-
-    # Return the list of Medicines as the response
-    return medicines
-
-# Define FastAPI endpoint to get a specific Medicine by quantity_per_package
-@app.get("/medicines/{quantity_per_package}", response_model=MedicineResponse)
-def read_medicine(quantity_per_package: int, db: Session = Depends(get_db)):
-    # Query the database to get a specific Medicine by quantity_per_package
-    medicine = db.query(Medicine).filter(Medicine.quantity_per_package == quantity_per_package).first()
-
-    # If Medicine is not found, raise an HTTPException with status code 404
+@app.get("/medicines/{medicine_name}", response_model=MedicineResponse)
+def read_medicine(medicine_name: str, db: Session = Depends(get_db)):
+    medicine = db.query(Medicine).filter(Medicine.name == medicine_name).first()
     if medicine is None:
         raise HTTPException(status_code=404, detail="Medicine not found")
-
-    # Return the found Medicine as the response
     return medicine
+
+@app.get("/medicines/", response_model=List[MedicineResponse])
+def list_medicines(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+    medicines = db.query(Medicine).offset(skip).limit(limit).all()
+    return medicines
+
+# CRUD operations for Availability
+@app.post("/availabilities/", response_model=AvailabilityResponse)
+def create_availability(availability: AvailabilityCreate, db: Session = Depends(get_db)):
+    db_availability = Availability(**availability.dict())
+    db.add(db_availability)
+    db.commit()
+    db.refresh(db_availability)
+    return db_availability
+
+@app.get("/availabilities/{price}", response_model=AvailabilityResponse)
+def read_availability(price: float, db: Session = Depends(get_db)):
+    availability = db.query(Availability).filter(Availability.price == price).first()
+    if availability is None:
+        raise HTTPException(status_code=404, detail="Availability not found")
+    return availability
+
+@app.get("/availabilities/", response_model=List[AvailabilityResponse])
+def list_availabilities(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+    availabilities = db.query(Availability).offset(skip).limit(limit).all()
+    return availabilities
+
+# CRUD operations for Pharmacy
+@app.post("/pharmacies/", response_model=PharmacyResponse)
+def create_pharmacy(pharmacy: PharmacyCreate, db: Session = Depends(get_db)):
+    db_pharmacy = Pharmacy(**pharmacy.dict())
+    db.add(db_pharmacy)
+    db.commit()
+    db.refresh(db_pharmacy)
+    return db_pharmacy
+
+@app.get("/pharmacies/{pharmacy_name}", response_model=PharmacyResponse)
+def read_pharmacy(pharmacy_name: str, db: Session = Depends(get_db)):
+    pharmacy = db.query(Pharmacy).filter(Pharmacy.pharmacy_name == pharmacy_name).first()
+    if pharmacy is None:
+        raise HTTPException(status_code=404, detail="Pharmacy not found")
+    return pharmacy
+
+# 1. SELECT ... WHERE (с несколькими условиями)
+@app.get("/medicines/filter/", response_model=List[MedicineResponse])
+def filter_medicines(manufacturer: str, indications: str, db: Session = Depends(get_db)):
+    medicines = db.query(Medicine).filter(
+        Medicine.manufacturer == manufacturer,
+        Medicine.indications == indications
+    ).all()
+    return medicines
+
+# 2. JOIN
+@app.get("/medicines/{medicine_id}/availability/", response_model=List[AvailabilityResponse])
+def get_medicine_availability(medicine_id: int, db: Session = Depends(get_db)):
+    medicine_availability = db.query(Availability).join(Medicine).filter(Medicine.id == medicine_id).all()
+    return medicine_availability
+
+# 3. UPDATE с нетривиальным условием
+@app.put("/update-availability/", response_model=AvailabilityResponse)
+def update_availability_price_threshold(price_threshold: float, new_count: int, db: Session = Depends(get_db)):
+    updated_availability = db.query(Availability).filter(Availability.price > price_threshold).update(
+        {Availability.count: new_count}, synchronize_session=False)
+    db.commit()
+    return updated_availability
+
+# 4. GROUP BY
+@app.get("/availability-by-manufacturer/", response_model=List[dict])
+def availability_by_manufacturer(db: Session = Depends(get_db)):
+    result = db.query(Medicine.manufacturer, func.sum(Availability.count)).join(Availability).group_by(
+        Medicine.manufacturer).all()
+    return [{"manufacturer": m, "total_count": count} for m, count in result]
+
+# 5. Добавить сортировку выдачи результатов по какому-то из полей
+@app.get("/pharmacies/", response_model=List[PharmacyResponse])
+def list_pharmacies_sorted(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+    pharmacies = db.query(Pharmacy).order_by(Pharmacy.pharmacy_name).offset(skip).limit(limit).all()
+    return pharmacies
