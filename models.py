@@ -1,6 +1,8 @@
 from sqlalchemy import create_engine, Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint, func
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
+from sqlalchemy.sql.expression import Index
+
 
 Base = declarative_base()
 
@@ -17,6 +19,10 @@ class Medicine(Base):
 
     # One-to-Many relationship with Availability
     availabilities = relationship('Availability', back_populates='medicine', cascade="all, delete-orphan")
+
+
+Index('idx_medicine_extra_data_gin', Medicine.extra_data, postgresql_using='gin')
+
 
 class Availability(Base):
     __tablename__ = "Availability"
